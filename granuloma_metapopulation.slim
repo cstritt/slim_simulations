@@ -1,0 +1,123 @@
+// Granuloma metapopulation model for MTB
+
+initialize() {
+	
+	if (exists("slimgui"))
+	{
+		defineConstant("N", 20); // number of "granulomas"
+		defineConstant("K", 2e+04); // carrying capacity
+		defineConstant("gs", 4e+05); // genome size
+		defineConstant("Mu", 1e-9);	// mutation rate: 9e-6 to 2e-10 (Morales-Arce et al. 2020)
+		defineConstant("s", 0);	// strength of purifying selection (Pepperell et al. 2013): -9.5e-4
+		defineConstant("outAll", "/home/cristobal/TB/projects/TB_review/simulations/metapopulation/outputAll_GUI.tsv");
+		defineConstant("outInd", "/home/cristobal/TB/projects/TB_review/simulations/metapopulation/outputInd_GUI.tsv");
+		//setSeed(999);
+	}
+	
+	initializeSLiMModelType("nonWF");
+	
+	initializeMutationRate(Mu);
+	initializeRecombinationRate(0);
+	
+	// Neutral mutations only
+	initializeMutationType("m1", 1, "f", 0);
+	initializeMutationType("m2", 1, "f", s);
+	m1.convertToSubstitution = T;
+	initializeGenomicElementType("g1", c(m1, m2), c(0.05, 0.95));
+	initializeGenomicElement(g1, 0, gs);
+
+}
+
+// Clonal reproduction: duplicate genome, parental cell stays alive
+reproduction() {
+	subpop.addRecombinant(individual.genome1, NULL, NULL, NULL, NULL, NULL);
+}
+
+// Add N "granulomas" to the metapopulation, and a single founder individual to p1
+1 early() {
+	for (i in 1:N)
+		sim.addSubpop(i, (i == 1) ? 1 else 0, haploid=T);
+}
+
+
+// Dissemination dynamics: 
+// Populations can act as donors when they exceed carrying capacity K, as receivers when they are empty.
+// One random donor population is picked per generation, nmigrants, drawn from rpos(1,1), are picked from this population
+// ... and transferred to a random receiver population. 
+
+early() {
+	
+	print(sim.cycle);
+	
+	indv_counts = sim.subpopulations.individualCount/2; // divide by 2 because at early events there is new offspring but no selection
+	receivers = sim.subpopulations[which(indv_counts == 0)];
+	donors = sim.subpopulations[which(indv_counts > K)];
+	
+	//print(c(sim.cycle, length(receivers), length(donors)));	
+	//print(indv_counts);	
+	
+	if (length(receivers) > 0 & length(donors) > 0){
+		
+		// Sample migrants from randomly selected donor population
+		nmigrants = rpois(1,1);
+		sourcepop = sample(donors, 1);
+		
+		//migrants = sample(donors.individuals, 1);
+		migrants = sample(sourcepop.individuals, nmigrants);
+		dest = sample(receivers, 1);
+		dest.takeMigrants(migrants);
+		
+		print("Migration from " + sourcepop.id + " to " + dest.id);
+	
+	}
+	
+	// Density-dependence 
+	for (subpop in sim.subpopulations){
+		subpop.fitnessScaling = K / subpop.individualCount;
+	}
+}
+
+
+70 late() {
+	
+	// Write output (vectorized, faster than loop)
+	//	lines = sapply(sim.mutations, "paste0(applyValue.id, ',', applyValue.position, ',', applyValue.mutationType, ',', applyValue.originTick, ',', applyValue.subpopID, ',', applyValue.selectionCoeff, ',', sim.mutationFrequencies(applyValue.subpopID, applyValue), ',', sim.mutationFrequencies(sim.subpopulations, applyValue), '\\n');");
+	//		
+	//	file = paste0(lines);
+	//	file = "mutID,tpos,mutType,gen_origin,pop_origin,freq_pop_orig,freq_pop_total,N_pop_origin,N_total\n" + file;
+	//	
+	//	writeFile("/home/cristobal/TB/projects/TB_review/simulations/metapopulation/outputAll_vectorized.tsv", file);
+	
+	// Write header to output file
+	writeFile(
+		outAll,
+		paste("mutID", "pos", "gen_origin", "pop_origin", "freq_pop_orig", "freq_pop_total", "N_pop_origin", "N_total")
+		);
+	
+	// non-vectorized
+	muts = sim.mutations;
+	subpops = sim.subpopulations;
+	
+	for (mut in muts){
+		
+		line = paste(
+			mut.id,
+			mut.position,
+			//mut.mutationType,
+			mut.originTick,
+			mut.subpopID,
+			sim.mutationFrequencies(mut.subpopID, mut),
+			sim.mutationFrequencies(subpops, mut),
+			subpops.individualCount[mut.subpopID-1],
+			sum(subpops.individualCount)
+			);
+		
+		writeFile(outAll, line, append=T);
+	}
+	
+	// Second output: number of mutations per strain
+	n_muts = sapply(sim.subpopulations.individuals, "paste0(length(applyValue.uniqueMutations), '\\n');");
+	file = paste0(n_muts);
+	writeFile(outInd, file);
+
+}
