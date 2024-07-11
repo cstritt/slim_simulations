@@ -1,6 +1,6 @@
 # Slim Simulations
 
-This folder contains the code to simulate a bacterial within-host metapopulation using SLiM (https://messerlab.org/slim/), as described in Stritt & Gagneux 2022 (https://doi.org/10.32942/X2GW2P):
+This folder contains the code to simulate a bacterial within-host metapopulation using SLiM (https://messerlab.org/slim/), as described in Stritt & Gagneux 2023 (https://doi.org/10.24072/pcjournal.322):
 
 "Infection begins with a single bacterium giving rise to an exponentially growing population through clonal reproduction and 19 "empty" populations. Once this pop
 ulation reaches carrying capacity K = 20, 000, it can seed new populations (Figure B1a), which again grow and can seed new populations when K is reached. More specifically, each generation a number of n migrants is drawn from a Poisson distribution with mean 1; n individuals are then drawn from a random population that has reached K and migrated to a random empty population until all populations are occupied. Exemplary growth dynamics of the simulation are depicted
